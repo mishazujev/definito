@@ -1,9 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { useServerFn } from "@tanstack/react-start";
 import { BANKS, LANGS, type Entry, type Lang } from "@/lib/words";
 import { PHASE_SECONDS, isCorrect, pointsFor, shuffle } from "@/lib/game";
-import { getNotionWords } from "@/lib/notion.functions";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -20,7 +18,6 @@ export const Route = createFileRoute("/")({
 });
 
 type Mode = { kind: "timed"; seconds: 40 | 60 } | { kind: "fixed"; count: 10 | 12 | 15 };
-type Source = "builtin" | "notion" | "both";
 const POS_STYLE = {
   noun: { label: "noun", text: "text-noun", border: "border-noun" },
   verb: { label: "verb", text: "text-verb", border: "border-verb" },
@@ -32,9 +29,6 @@ type Result = { entry: Entry; points: number };
 
 function Game() {
   const [lang, setLang] = useState<Lang>("en");
-  const [source, setSource] = useState<Source>("builtin");
-  const [notice, setNotice] = useState<string | null>(null);
-  const fetchNotion = useServerFn(getNotionWords);
   const [mode, setMode] = useState<Mode>({ kind: "fixed", count: 10 });
   const [stage, setStage] = useState<"setup" | "play" | "done">("setup");
   const [queue, setQueue] = useState<Entry[]>([]);
@@ -71,20 +65,7 @@ function Game() {
 
   async function start() {
     setLoading(true);
-    setNotice(null);
-    let pool: Entry[] = source === "notion" ? [] : await loadBank(lang);
-    if (source !== "builtin") {
-      let notion: Entry[] = [];
-      try {
-        const r = await fetchNotion({ data: { lang } });
-        notion = r.entries;
-        if (r.error) setNotice(`${r.error} — using built-in words.`);
-      } catch {
-        setNotice("Couldn't reach Notion — using built-in words.");
-      }
-      pool = [...pool, ...notion];
-      if (!pool.length) pool = await loadBank(lang);
-    }
+    const pool = await loadBank(lang);
     const bank = shuffle(pool).slice(0, 300);
     setLoading(false);
     setQueue(mode.kind === "fixed" ? bank.slice(0, mode.count) : bank);
@@ -229,26 +210,14 @@ function Game() {
                 ))}
               </div>
             </div>
-            <div>
-              <h2 className="mb-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">Words from</h2>
-              <div className="flex flex-wrap gap-2">
-                {([["builtin", "Built-in"], ["notion", "My Notion"], ["both", "Both"]] as const).map(([id, label]) => (
-                  <button key={id} className={chip(source === id)} onClick={() => setSource(id)}>
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </div>
             <button onClick={start} disabled={loading} className="w-full rounded-xl bg-primary py-4 text-lg font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-60">
               {loading ? "Loading words…" : "Start"}
             </button>
-            {notice && <p className="text-sm text-destructive">{notice}</p>}
           </section>
         )}
 
         {stage === "play" && current && (
           <section className="space-y-6">
-            {notice && <p className="text-sm text-destructive">{notice}</p>}
             <div className="h-1.5 overflow-hidden rounded-full bg-muted">
               <div
                 className={`h-full transition-all duration-1000 ease-linear ${phase === 1 ? "bg-primary" : "bg-highlight"}`}
