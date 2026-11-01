@@ -1,10 +1,7 @@
-# Welcome to your Lovable project
 
-This project was built with [Lovable](https://lovable.dev).
+This game was built by Misha Zujev
 
-## Build with Lovable
 
-Open your project in the [Lovable editor](https://lovable.dev) and keep building.
 
 - **Ship faster**: describe what you want to build and Lovable handles the code.
 - **Stay in sync**: connect the project to GitHub and every change made in Lovable is committed straight to your repository.
@@ -12,7 +9,6 @@ Open your project in the [Lovable editor](https://lovable.dev) and keep building
 
 ## Development
 
-Prefer working locally? You need Node.js and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
 
 ```sh
 git clone <this-repository-url>
