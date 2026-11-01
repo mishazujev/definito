@@ -1,3 +1,10 @@
+# Definito
+
+A multilingual word-guessing game powered by Notion.
+
+## Play online
+
+**[Play Definito](https://definito.ti-h-pe-4406.chatgpt.site/)**
 
 This game was built by Misha Zujev
 
