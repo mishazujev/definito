@@ -94,9 +94,13 @@ async function apiRequest(apiKey, path, method = "GET", body) {
   });
   if (!response.ok) {
     console.error(`Notion API request failed: ${response.status}`);
-    throw new Error(response.status === 401 || response.status === 403
-      ? "Notion rejected the connection or cannot access this dictionary."
-      : `Notion request failed (${response.status}).`);
+    if (response.status === 404) {
+      throw new Error("Notion cannot find or access this dictionary. Verify the data source ID and share the dictionary with the integration whose key is stored in this Site (Stories Feed). If it is already shared, confirm the Site key belongs to that same integration.");
+    }
+    if (response.status === 401 || response.status === 403) {
+      throw new Error("Notion rejected the Site key or its access. Confirm NOTION_API_KEY is the internal secret for Stories Feed and that it has read-content access.");
+    }
+    throw new Error(`Notion request failed (${response.status}).`);
   }
   return response.json();
 }
