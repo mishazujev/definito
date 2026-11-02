@@ -1,10 +1,14 @@
-# Welcome to your Lovable project
+# Definito
 
-This project was built with [Lovable](https://lovable.dev).
+A multilingual word-guessing game powered by Notion.
 
-## Build with Lovable
+## Play online
 
-Open your project in the [Lovable editor](https://lovable.dev) and keep building.
+**[Play Definito](https://definito.ti-h-pe-4406.chatgpt.site/)**
+
+This game was built by Misha Zujev
+
+
 
 - **Ship faster**: describe what you want to build and Lovable handles the code.
 - **Stay in sync**: connect the project to GitHub and every change made in Lovable is committed straight to your repository.
@@ -12,7 +16,6 @@ Open your project in the [Lovable editor](https://lovable.dev) and keep building
 
 ## Development
 
-Prefer working locally? You need Node.js and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
 
 ```sh
 git clone <this-repository-url>
