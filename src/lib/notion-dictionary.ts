@@ -42,12 +42,13 @@ const propertyText = (prop?: NotionProperty): string => {
   return richText(prop.title ?? prop.rich_text);
 };
 
-const propertyFor = (props: Properties, names: string[]) => {
+const propertyTextFor = (props: Properties, names: string[]) => {
   for (const name of names) {
     const key = propertyName(props, name);
-    if (key) return props[key];
+    const value = key ? propertyText(props[key]) : "";
+    if (value) return value;
   }
-  return undefined;
+  return "";
 };
 
 export function isNotionLanguage(value: unknown): value is Lang {
@@ -64,7 +65,7 @@ export function dictionaryFilter(props: Properties, lang?: Lang) {
   if (inGame && props[inGame]?.type === "checkbox") {
     filters.push({ property: inGame, checkbox: { equals: true } });
   }
-  const definition = propertyName(props, lang === "fr" ? "fr definition" : "definition") ?? propertyName(props, "definition");
+  const definition = propertyName(props, "definition") ?? (lang === "fr" ? propertyName(props, "fr definition") : undefined);
   if (definition && props[definition]?.type === "rich_text") {
     filters.push({ property: definition, rich_text: { is_not_empty: true } });
   }
@@ -85,10 +86,10 @@ export function dictionaryEntry(props: Properties, schema: Properties, lang?: La
   if (inGame && schema[inGame]?.type === "checkbox" && props[inGame]?.checkbox !== true) return;
   const get = (name: string) => propertyText(props[propertyName(props, name) ?? ""]);
   const word = propertyText(Object.values(props).find((prop) => prop.type === "title"));
-  const def = propertyText(propertyFor(props, lang === "fr" ? ["fr definition", "definition"] : ["definition"]));
+  const def = propertyTextFor(props, lang === "fr" ? ["definition", "fr definition"] : ["definition"]);
   if (!word || !def) return;
   const level = get("level");
-  const hint = propertyText(propertyFor(props, ["hint", "hint (for game)"]));
+  const hint = propertyTextFor(props, ["hint", "hint (for game)"]);
   return { word, def, hint: hint || def, pos: partOfSpeech(get("part of speech")), ...(level ? { level } : {}) };
 }
 

@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { BANKS, LANGS, type Entry, type Lang } from "@/lib/words";
 import { PHASE_SECONDS, isCorrect, pointsFor, shuffle } from "@/lib/game";
 import { getNotionWords } from "@/lib/notion.functions";
@@ -49,27 +49,50 @@ function Game() {
 
   const cache = useRef<Partial<Record<Lang, Entry[]>>>({});
   const notionCache = useRef<Partial<Record<Lang, Entry[]>>>({});
+  const notionRequests = useRef<Partial<Record<Lang, Promise<Entry[]>>>>({});
   const [loading, setLoading] = useState(false);
   const [connection, setConnection] = useState("Checking Notion connection…");
   const [notice, setNotice] = useState("");
   const [wordSource, setWordSource] = useState("");
 
+  const loadNotionWords = useCallback((selectedLang: Lang): Promise<Entry[]> => {
+    const cached = notionCache.current[selectedLang];
+    if (cached) return Promise.resolve(cached);
+    const pending = notionRequests.current[selectedLang];
+    if (pending) return pending;
+    const request = getNotionWords(selectedLang).then(
+      ({ entries }) => {
+        notionCache.current[selectedLang] = entries;
+        delete notionRequests.current[selectedLang];
+        return entries;
+      },
+      (error: unknown) => {
+        delete notionRequests.current[selectedLang];
+        throw error;
+      },
+    );
+    notionRequests.current[selectedLang] = request;
+    return request;
+  }, []);
+
   useEffect(() => {
     let current = true;
+    setLoading(true);
     setConnection("Checking Notion connection…");
     setNotice("");
-    getNotionWords(lang).then(({ entries }) => {
+    loadNotionWords(lang).then((entries) => {
       if (!current) return;
-      notionCache.current[lang] = entries;
+      setLoading(false);
       setConnection(`Notion connected · ${entries.length} playable words`);
       if (!entries.length) setNotice("No playable Notion words found. Check In game and Definition in the database.");
     }).catch((error: unknown) => {
       if (!current) return;
+      setLoading(false);
       delete notionCache.current[lang];
       setConnection(error instanceof Error ? `Notion unavailable: ${error.message}` : "Notion unavailable.");
     });
     return () => { current = false; };
-  }, [lang]);
+  }, [lang, loadNotionWords]);
 
   async function loadBank(l: Lang): Promise<Entry[]> {
     if (cache.current[l]) return cache.current[l]!;
@@ -91,8 +114,7 @@ function Game() {
     let pool: Entry[];
     let source: string;
     try {
-      const entries = notionCache.current[lang] ?? (await getNotionWords(lang)).entries;
-      notionCache.current[lang] = entries;
+      const entries = await loadNotionWords(lang);
       if (!entries.length) {
         setNotice("No playable Notion words found. Check In game and Definition in the database.");
         setLoading(false);

@@ -57,8 +57,20 @@ function firstPropertyKey(properties, names) {
   return undefined;
 }
 
+function firstPropertyText(properties, names) {
+  for (const name of names) {
+    const value = propertyText(properties[propertyKey(properties, name)]);
+    if (value) return value;
+  }
+  return "";
+}
+
+function definitionNames(lang) {
+  return lang === "fr" ? ["definition", "fr definition"] : ["definition"];
+}
+
 function definitionKey(schema, lang) {
-  return firstPropertyKey(schema, lang === "fr" ? ["fr definition", "definition"] : ["definition"]);
+  return firstPropertyKey(schema, definitionNames(lang));
 }
 
 function partOfSpeech(value) {
@@ -105,10 +117,9 @@ function toEntry(page, schema, lang) {
   const properties = page.properties ?? {};
   const titleKey = Object.keys(properties).find((key) => properties[key]?.type === "title");
   const name = propertyText(properties[titleKey]);
-  const definition = propertyText(properties[definitionKey(schema, lang)]);
+  const definition = firstPropertyText(properties, definitionNames(lang));
   if (!name || !definition) return undefined;
 
-  const hintKey = firstPropertyKey(schema, ["hint", "hint (for game)"]);
   const posKey = propertyKey(schema, "part of speech") ?? propertyKey(schema, "pos");
   const levelKey = propertyKey(schema, "level");
   const level = propertyText(properties[levelKey]);
@@ -116,7 +127,7 @@ function toEntry(page, schema, lang) {
   return {
     word: name,
     def: definition,
-    hint: propertyText(properties[hintKey]) || definition,
+    hint: firstPropertyText(properties, ["hint", "hint (for game)"]) || definition,
     pos: partOfSpeech(propertyText(properties[posKey])),
     ...(level ? { level } : {}),
   };

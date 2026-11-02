@@ -55,13 +55,10 @@ describe("Notion dictionary rules", () => {
       "fr definition": rich("Ce qui est établi comme vrai."),
       "Hint (for game)": rich("Vérifiez-les avant de publier."),
     };
-    expect(dictionaryFilter(frenchSchema, "fr")).toEqual({ and: [
-      { property: "In game", checkbox: { equals: true } },
-      { property: "fr definition", rich_text: { is_not_empty: true } },
-    ] });
+    expect(dictionaryFilter(frenchSchema, "fr")).toEqual({ property: "In game", checkbox: { equals: true } });
     expect(dictionaryEntry(frenchRow, frenchSchema, "fr")).toMatchObject({
       word: "fait",
-      def: "Ce qui est établi comme vrai.",
+      def: "A fact",
       hint: "Vérifiez-les avant de publier.",
     });
   });
