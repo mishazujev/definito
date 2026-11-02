@@ -58,9 +58,31 @@ describe("Notion dictionary rules", () => {
     expect(dictionaryFilter(frenchSchema, "fr")).toEqual({ property: "In game", checkbox: { equals: true } });
     expect(dictionaryEntry(frenchRow, frenchSchema, "fr")).toMatchObject({
       word: "fait",
-      def: "A fact",
+      def: "Ce qui est établi comme vrai.",
       hint: "Vérifiez-les avant de publier.",
     });
+  });
+  it("prefers the canonical translated property and falls back to Definition per word", () => {
+    const germanSchema: Record<string, NotionProperty> = {
+      Definition: { type: "rich_text" },
+      "Definition (de)": { type: "rich_text" },
+    };
+    const translated = {
+      Name: { type: "title", title: [{ plain_text: "Brücke" }] },
+      Definition: rich("A structure crossing water."),
+      "Definition (de)": rich("Ein Bauwerk über einem Gewässer."),
+    };
+    const untranslated = {
+      ...translated,
+      "Definition (de)": rich(""),
+    };
+
+    expect(dictionaryEntry(translated, germanSchema, "de")?.def).toBe("Ein Bauwerk über einem Gewässer.");
+    expect(dictionaryEntry(untranslated, germanSchema, "de")?.def).toBe("A structure crossing water.");
+    expect(dictionaryFilter(germanSchema, "de")).toEqual({ or: [
+      { property: "Definition (de)", rich_text: { is_not_empty: true } },
+      { property: "Definition", rich_text: { is_not_empty: true } },
+    ] });
   });
   it.each([
     ["English", "en"], ["EN dictionary", "en"], ["Deutsch", "de"], ["de", "de"],

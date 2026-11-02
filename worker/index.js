@@ -66,11 +66,7 @@ function firstPropertyText(properties, names) {
 }
 
 function definitionNames(lang) {
-  return lang === "fr" ? ["definition", "fr definition"] : ["definition"];
-}
-
-function definitionKey(schema, lang) {
-  return firstPropertyKey(schema, definitionNames(lang));
+  return lang === "en" ? ["definition"] : [`definition (${lang})`, `${lang} definition`, "definition"];
 }
 
 function partOfSpeech(value) {
@@ -160,12 +156,21 @@ async function handleNotion(request, env) {
     const schema = await getSchema(apiKey, dataSourceId);
     const conditions = [];
     const inGameKey = propertyKey(schema, "in game");
-    const playableDefinitionKey = definitionKey(schema, lang);
     if (inGameKey && schema[inGameKey]?.type === "checkbox") {
       conditions.push({ property: inGameKey, checkbox: { equals: true } });
     }
-    if (playableDefinitionKey && schema[playableDefinitionKey]?.type === "rich_text") {
-      conditions.push({ property: playableDefinitionKey, rich_text: { is_not_empty: true } });
+    const translatedDefinitionKey = lang === "en"
+      ? undefined
+      : firstPropertyKey(schema, definitionNames(lang).slice(0, 2));
+    const defaultDefinitionKey = propertyKey(schema, "definition");
+    if (translatedDefinitionKey && schema[translatedDefinitionKey]?.type === "rich_text") {
+      if (defaultDefinitionKey && schema[defaultDefinitionKey]?.type === "rich_text") {
+        conditions.push({ or: [translatedDefinitionKey, defaultDefinitionKey].map((property) => ({ property, rich_text: { is_not_empty: true } })) });
+      } else if (!defaultDefinitionKey) {
+        conditions.push({ property: translatedDefinitionKey, rich_text: { is_not_empty: true } });
+      }
+    } else if (defaultDefinitionKey && schema[defaultDefinitionKey]?.type === "rich_text") {
+      conditions.push({ property: defaultDefinitionKey, rich_text: { is_not_empty: true } });
     }
     const entries = [];
     let cursor;

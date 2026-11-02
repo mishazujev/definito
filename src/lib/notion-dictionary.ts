@@ -51,6 +51,10 @@ const propertyTextFor = (props: Properties, names: string[]) => {
   return "";
 };
 
+const definitionNames = (lang: Lang = "en") => lang === "en"
+  ? ["definition"]
+  : [`definition (${lang})`, `${lang} definition`, "definition"];
+
 export function isNotionLanguage(value: unknown): value is Lang {
   return typeof value === "string" && Object.hasOwn(LANG_KEYS, value);
 }
@@ -65,9 +69,19 @@ export function dictionaryFilter(props: Properties, lang?: Lang) {
   if (inGame && props[inGame]?.type === "checkbox") {
     filters.push({ property: inGame, checkbox: { equals: true } });
   }
-  const definition = propertyName(props, "definition") ?? (lang === "fr" ? propertyName(props, "fr definition") : undefined);
-  if (definition && props[definition]?.type === "rich_text") {
-    filters.push({ property: definition, rich_text: { is_not_empty: true } });
+  const candidates = definitionNames(lang);
+  const translatedDefinition = lang && lang !== "en"
+    ? propertyName(props, candidates[0]) ?? propertyName(props, candidates[1])
+    : undefined;
+  const defaultDefinition = propertyName(props, "definition");
+  if (translatedDefinition && props[translatedDefinition]?.type === "rich_text") {
+    if (defaultDefinition && props[defaultDefinition]?.type === "rich_text") {
+      filters.push({ or: [translatedDefinition, defaultDefinition].map((property) => ({ property, rich_text: { is_not_empty: true } })) });
+    } else if (!defaultDefinition) {
+      filters.push({ property: translatedDefinition, rich_text: { is_not_empty: true } });
+    }
+  } else if (defaultDefinition && props[defaultDefinition]?.type === "rich_text") {
+    filters.push({ property: defaultDefinition, rich_text: { is_not_empty: true } });
   }
   if (filters.length === 0) return undefined;
   return filters.length === 1 ? filters[0] : { and: filters };
@@ -86,7 +100,7 @@ export function dictionaryEntry(props: Properties, schema: Properties, lang?: La
   if (inGame && schema[inGame]?.type === "checkbox" && props[inGame]?.checkbox !== true) return;
   const get = (name: string) => propertyText(props[propertyName(props, name) ?? ""]);
   const word = propertyText(Object.values(props).find((prop) => prop.type === "title"));
-  const def = propertyTextFor(props, lang === "fr" ? ["definition", "fr definition"] : ["definition"]);
+  const def = propertyTextFor(props, definitionNames(lang));
   if (!word || !def) return;
   const level = get("level");
   const hint = propertyTextFor(props, ["hint", "hint (for game)"]);

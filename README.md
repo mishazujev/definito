@@ -8,6 +8,12 @@ A multilingual word-guessing game powered by Notion.
 
 This game was built by Misha Zujev
 
+## Notion definition properties
+
+Use `Definition` for the default English definition. For a translated definition, name the property `Definition (xx)`, where `xx` is the lowercase ISO 639-1 language code, such as `Definition (fr)` or `Definition (de)`. The game also recognizes the existing legacy format `xx definition`, including `fr definition`.
+
+English is selected by default. For another game language, Definito uses the first non-empty translation field for that language and falls back to `Definition` when a page has no translation. Mark playable rows with the `In game` checkbox.
+
 
 
 - **Ship faster**: describe what you want to build and Lovable handles the code.

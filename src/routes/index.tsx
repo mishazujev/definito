@@ -249,7 +249,7 @@ function Game() {
               <p className="text-sm text-muted-foreground" role="status">{connection}</p>
             )}
             <div>
-              <h2 className="mb-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">Language</h2>
+              <h2 className="mb-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">Game language</h2>
               <div className="flex flex-wrap gap-2">
                 {LANGS.map((l) => (
                   <button key={l.id} className={chip(lang === l.id)} onClick={() => setLang(l.id)}>
@@ -257,6 +257,9 @@ function Game() {
                   </button>
                 ))}
               </div>
+              <p className="mt-2 text-xs text-muted-foreground">
+                English uses Definition. Other languages use Definition (language code), then the legacy language-code definition field, and fall back to Definition.
+              </p>
             </div>
             <div>
               <h2 className="mb-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">Fixed set</h2>
