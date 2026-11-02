@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { BANKS, LANGS, type Entry, type Lang } from "@/lib/words";
 import { PHASE_SECONDS, isCorrect, pointsFor, shuffle } from "@/lib/game";
-import { getNotionOptions, getNotionWords, type NotionOptions } from "@/lib/notion.functions";
+import { getNotionWords } from "@/lib/notion.functions";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -48,10 +48,8 @@ function Game() {
   const current = queue[idx];
 
   const cache = useRef<Partial<Record<Lang, Entry[]>>>({});
+  const notionCache = useRef<Partial<Record<Lang, Entry[]>>>({});
   const [loading, setLoading] = useState(false);
-  const [notionOptions, setNotionOptions] = useState<NotionOptions>({ trade: [], occasion: [] });
-  const [trade, setTrade] = useState("");
-  const [occasion, setOccasion] = useState("");
   const [connection, setConnection] = useState("Checking Notion connection…");
   const [notice, setNotice] = useState("");
   const [wordSource, setWordSource] = useState("");
@@ -60,15 +58,14 @@ function Game() {
     let current = true;
     setConnection("Checking Notion connection…");
     setNotice("");
-    setTrade("");
-    setOccasion("");
-    getNotionOptions(lang).then(({ filters }) => {
+    getNotionWords(lang).then(({ entries }) => {
       if (!current) return;
-      setNotionOptions(filters);
-      setConnection("Notion connected · words are filtered by In game");
+      notionCache.current[lang] = entries;
+      setConnection(`Notion connected · ${entries.length} playable words`);
+      if (!entries.length) setNotice("No playable Notion words found. Check In game and Definition in the database.");
     }).catch((error: unknown) => {
       if (!current) return;
-      setNotionOptions({ trade: [], occasion: [] });
+      delete notionCache.current[lang];
       setConnection(error instanceof Error ? `Notion unavailable: ${error.message}` : "Notion unavailable.");
     });
     return () => { current = false; };
@@ -94,21 +91,17 @@ function Game() {
     let pool: Entry[];
     let source: string;
     try {
-      const result = await getNotionWords(lang, { trade, occasion });
-      if (!result.entries.length) {
-        setNotice("No Notion words match these filters. Check In game, Definition, Trade, and Occasion in the database.");
+      const entries = notionCache.current[lang] ?? (await getNotionWords(lang)).entries;
+      notionCache.current[lang] = entries;
+      if (!entries.length) {
+        setNotice("No playable Notion words found. Check In game and Definition in the database.");
         setLoading(false);
         return;
       }
-      pool = result.entries;
+      pool = entries;
       source = "Notion";
       setConnection(`Notion connected · ${pool.length} matching words`);
     } catch (error) {
-      if (trade || occasion) {
-        setNotice(error instanceof Error ? error.message : "Could not load filtered words from Notion.");
-        setLoading(false);
-        return;
-      }
       pool = await loadBank(lang);
       source = "built-in words (Notion unavailable)";
       setConnection(error instanceof Error ? `Notion unavailable: ${error.message}` : "Notion unavailable.");
@@ -228,8 +221,11 @@ function Game() {
               Read the definition and type the word. You get {PHASE_SECONDS} seconds — then the letter count is revealed
               and a longer hint, and you get {PHASE_SECONDS} more. Press Hint to get it early. 2 points without hints, 1 with. Skip shows the answer.
             </p>
-            <p className="text-sm text-muted-foreground" role="status">{connection}</p>
-            {notice && <p className="text-sm text-destructive" role="alert">{notice}</p>}
+            {notice ? (
+              <p className="text-sm text-destructive" role="alert">{notice}</p>
+            ) : (
+              <p className="text-sm text-muted-foreground" role="status">{connection}</p>
+            )}
             <div>
               <h2 className="mb-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">Language</h2>
               <div className="flex flex-wrap gap-2">
@@ -240,20 +236,6 @@ function Game() {
                 ))}
               </div>
             </div>
-            {(notionOptions.trade.length > 0 || notionOptions.occasion.length > 0) && (
-              <div className="grid gap-4 sm:grid-cols-2">
-                {notionOptions.trade.length > 0 && <label className="space-y-2 text-sm">Trade
-                  <select value={trade} onChange={(e) => setTrade(e.target.value)} className="w-full rounded-xl border bg-card px-3 py-3">
-                    <option value="">All trades</option>{notionOptions.trade.map((value) => <option key={value}>{value}</option>)}
-                  </select>
-                </label>}
-                {notionOptions.occasion.length > 0 && <label className="space-y-2 text-sm">Occasion
-                  <select value={occasion} onChange={(e) => setOccasion(e.target.value)} className="w-full rounded-xl border bg-card px-3 py-3">
-                    <option value="">All occasions</option>{notionOptions.occasion.map((value) => <option key={value}>{value}</option>)}
-                  </select>
-                </label>}
-              </div>
-            )}
             <div>
               <h2 className="mb-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">Fixed set</h2>
               <div className="flex flex-wrap gap-2">

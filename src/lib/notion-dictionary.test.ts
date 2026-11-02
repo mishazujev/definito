@@ -41,6 +41,30 @@ describe("Notion dictionary rules", () => {
   it("falls back to definition when hint is missing", () => {
     expect(dictionaryEntry(row, schema)?.hint).toBe("A structure crossing a river");
   });
+  it("uses the French definition and game hint fields", () => {
+    const frenchSchema: Record<string, NotionProperty> = {
+      "In game": { type: "checkbox" },
+      Definition: { type: "rollup" },
+      "fr definition": { type: "rich_text" },
+      "Hint (for game)": { type: "rich_text" },
+    };
+    const frenchRow: Record<string, NotionProperty> = {
+      Name: { type: "title", title: [{ plain_text: "fait" }] },
+      "In game": { type: "checkbox", checkbox: true },
+      Definition: { type: "rollup", rollup: { type: "array", array: [rich("A fact")] } },
+      "fr definition": rich("Ce qui est établi comme vrai."),
+      "Hint (for game)": rich("Vérifiez-les avant de publier."),
+    };
+    expect(dictionaryFilter(frenchSchema, "fr")).toEqual({ and: [
+      { property: "In game", checkbox: { equals: true } },
+      { property: "fr definition", rich_text: { is_not_empty: true } },
+    ] });
+    expect(dictionaryEntry(frenchRow, frenchSchema, "fr")).toMatchObject({
+      word: "fait",
+      def: "Ce qui est établi comme vrai.",
+      hint: "Vérifiez-les avant de publier.",
+    });
+  });
   it.each([
     ["English", "en"], ["EN dictionary", "en"], ["Deutsch", "de"], ["de", "de"],
     ["Français", "fr"], ["fr", "fr"], ["Español", "es"], ["es", "es"], ["Eesti", "et"], ["et", "et"],

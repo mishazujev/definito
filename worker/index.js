@@ -41,17 +41,24 @@ function propertyText(property) {
   if (property.type === "select" || property.type === "status") return property[property.type]?.name ?? "";
   if (property.type === "multi_select") return (property.multi_select ?? []).map((item) => item.name).join(", ");
   if (property.type === "number") return property.number == null ? "" : String(property.number);
+  if (property.type === "rollup") {
+    const rollup = property.rollup;
+    if (rollup?.type === "array") return (rollup.array ?? []).map(propertyText).filter(Boolean).join(", ");
+    if (rollup?.type === "number") return rollup.number == null ? "" : String(rollup.number);
+  }
   return "";
 }
 
-function propertyTags(property) {
-  if (!property) return [];
-  if (property.type === "select" || property.type === "status") {
-    const selected = property[property.type]?.name;
-    return selected ? [selected] : [];
+function firstPropertyKey(properties, names) {
+  for (const name of names) {
+    const key = propertyKey(properties, name);
+    if (key) return key;
   }
-  if (property.type === "multi_select") return (property.multi_select ?? []).map((item) => item.name);
-  return [];
+  return undefined;
+}
+
+function definitionKey(schema, lang) {
+  return firstPropertyKey(schema, lang === "fr" ? ["fr definition", "definition"] : ["definition"]);
 }
 
 function partOfSpeech(value) {
@@ -60,26 +67,6 @@ function partOfSpeech(value) {
   if (["verb", "v"].includes(key)) return "verb";
   if (["adj", "adjective", "a", "j"].includes(key)) return "adj";
   return "other";
-}
-
-function categoryOptions(schema, name) {
-  const key = propertyKey(schema, name);
-  if (!key) return [];
-  const property = schema[key];
-  if (property.type !== "select" && property.type !== "multi_select") return [];
-  return (property[property.type]?.options ?? []).map((option) => option.name).filter(Boolean);
-}
-
-function categoryFilter(schema, name, selected) {
-  if (!selected) return undefined;
-  const key = propertyKey(schema, name);
-  if (!key) throw new Error(`Add a ${name} property to this dictionary before using that filter.`);
-  const property = schema[key];
-  const options = categoryOptions(schema, name);
-  if (!options.includes(selected)) throw new Error(`Unknown ${name} filter. Refresh the game and choose an available value.`);
-  if (property.type === "select") return { property: key, select: { equals: selected } };
-  if (property.type === "multi_select") return { property: key, multi_select: { contains: selected } };
-  throw new Error(`${name} must be a Select or Multi-select property in Notion.`);
 }
 
 async function apiRequest(apiKey, path, method = "GET", body) {
@@ -114,20 +101,17 @@ async function getSchema(apiKey, dataSourceId) {
   return schema;
 }
 
-function toEntry(page, schema) {
+function toEntry(page, schema, lang) {
   const properties = page.properties ?? {};
   const titleKey = Object.keys(properties).find((key) => properties[key]?.type === "title");
   const name = propertyText(properties[titleKey]);
-  const definitionKey = propertyKey(schema, "definition");
-  const definition = propertyText(properties[definitionKey]);
+  const definition = propertyText(properties[definitionKey(schema, lang)]);
   if (!name || !definition) return undefined;
 
-  const hintKey = propertyKey(schema, "hint");
+  const hintKey = firstPropertyKey(schema, ["hint", "hint (for game)"]);
   const posKey = propertyKey(schema, "part of speech") ?? propertyKey(schema, "pos");
   const levelKey = propertyKey(schema, "level");
   const level = propertyText(properties[levelKey]);
-  const tradeKey = propertyKey(schema, "trade");
-  const occasionKey = propertyKey(schema, "occasion");
 
   return {
     word: name,
@@ -135,8 +119,6 @@ function toEntry(page, schema) {
     hint: propertyText(properties[hintKey]) || definition,
     pos: partOfSpeech(propertyText(properties[posKey])),
     ...(level ? { level } : {}),
-    ...(tradeKey ? { trade: propertyTags(properties[tradeKey]) } : {}),
-    ...(occasionKey ? { occasion: propertyTags(properties[occasionKey]) } : {}),
   };
 }
 
@@ -155,40 +137,25 @@ async function handleNotion(request, env) {
     return json({ error: "Invalid request." }, 400);
   }
 
-  const { lang, optionsOnly = false, trade = "", occasion = "" } = input ?? {};
+  const { lang } = input ?? {};
   const dataSourceId = DATA_SOURCES[lang];
   if (!dataSourceId) return json({ error: "Unsupported language." }, 400);
 
-  const cacheKey = JSON.stringify({ lang, optionsOnly, trade, occasion });
+  const cacheKey = lang;
   const cached = responseCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) return json(cached.body);
 
   try {
     const schema = await getSchema(apiKey, dataSourceId);
-    const filters = {
-      trade: categoryOptions(schema, "trade"),
-      occasion: categoryOptions(schema, "occasion"),
-    };
-    if (optionsOnly) {
-      const result = { filters };
-      responseCache.set(cacheKey, { body: result, expiresAt: Date.now() + CACHE_MS });
-      return json(result);
-    }
-
     const conditions = [];
     const inGameKey = propertyKey(schema, "in game");
-    const definitionKey = propertyKey(schema, "definition");
+    const playableDefinitionKey = definitionKey(schema, lang);
     if (inGameKey && schema[inGameKey]?.type === "checkbox") {
       conditions.push({ property: inGameKey, checkbox: { equals: true } });
     }
-    if (definitionKey && schema[definitionKey]?.type === "rich_text") {
-      conditions.push({ property: definitionKey, rich_text: { is_not_empty: true } });
+    if (playableDefinitionKey && schema[playableDefinitionKey]?.type === "rich_text") {
+      conditions.push({ property: playableDefinitionKey, rich_text: { is_not_empty: true } });
     }
-    const tradeCondition = categoryFilter(schema, "trade", trade);
-    const occasionCondition = categoryFilter(schema, "occasion", occasion);
-    if (tradeCondition) conditions.push(tradeCondition);
-    if (occasionCondition) conditions.push(occasionCondition);
-
     const entries = [];
     let cursor;
     do {
@@ -198,13 +165,13 @@ async function handleNotion(request, env) {
         ...(cursor ? { start_cursor: cursor } : {}),
       });
       for (const row of page.results ?? []) {
-        const entry = toEntry(row, schema);
+        const entry = toEntry(row, schema, lang);
         if (entry) entries.push(entry);
       }
       cursor = page.has_more ? page.next_cursor ?? undefined : undefined;
     } while (cursor && entries.length < 5_000);
 
-    const result = { entries, filters };
+    const result = { entries };
     responseCache.set(cacheKey, { body: result, expiresAt: Date.now() + CACHE_MS });
     return json(result);
   } catch (error) {

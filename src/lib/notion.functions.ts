@@ -1,15 +1,5 @@
 import type { Entry, Lang } from "./words";
 
-export type NotionWordFilters = {
-  trade?: string;
-  occasion?: string;
-};
-
-export type NotionOptions = {
-  trade: string[];
-  occasion: string[];
-};
-
 async function requestNotion<T>(body: object): Promise<T> {
   const response = await fetch("/api/notion/words", {
     method: "POST",
@@ -21,13 +11,6 @@ async function requestNotion<T>(body: object): Promise<T> {
   return result;
 }
 
-export function getNotionOptions(lang: Lang): Promise<{ filters: NotionOptions }> {
-  return requestNotion({ lang, optionsOnly: true });
-}
-
-export function getNotionWords(
-  lang: Lang,
-  filters: NotionWordFilters = {},
-): Promise<{ entries: Entry[] }> {
-  return requestNotion({ lang, ...filters });
+export function getNotionWords(lang: Lang): Promise<{ entries: Entry[] }> {
+  return requestNotion({ lang });
 }

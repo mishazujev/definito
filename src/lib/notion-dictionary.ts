@@ -18,6 +18,7 @@ export type NotionProperty = {
   status?: { name: string } | null;
   number?: number | null;
   checkbox?: boolean;
+  rollup?: { type: string; array?: NotionProperty[]; number?: number | null };
 };
 type Properties = Record<string, NotionProperty>;
 type Source = { id: string; title?: RichText; properties?: Properties };
@@ -34,7 +35,19 @@ const propertyText = (prop?: NotionProperty): string => {
   if (prop.type === "multi_select") return prop.multi_select?.map((item) => item.name.trim()).join(", ") ?? "";
   if (prop.type === "status") return prop.status?.name.trim() ?? "";
   if (prop.type === "number") return prop.number == null ? "" : String(prop.number);
+  if (prop.type === "rollup") {
+    if (prop.rollup?.type === "array") return (prop.rollup.array ?? []).map(propertyText).filter(Boolean).join(", ");
+    if (prop.rollup?.type === "number") return prop.rollup.number == null ? "" : String(prop.rollup.number);
+  }
   return richText(prop.title ?? prop.rich_text);
+};
+
+const propertyFor = (props: Properties, names: string[]) => {
+  for (const name of names) {
+    const key = propertyName(props, name);
+    if (key) return props[key];
+  }
+  return undefined;
 };
 
 export function isNotionLanguage(value: unknown): value is Lang {
@@ -45,13 +58,13 @@ export function matchesNotionLanguage(title: string, lang: Lang): boolean {
   return normalize(title).split(/[^\p{L}]+/u).some((word) => LANG_KEYS[lang].includes(word));
 }
 
-export function dictionaryFilter(props: Properties) {
+export function dictionaryFilter(props: Properties, lang?: Lang) {
   const filters: object[] = [];
   const inGame = propertyName(props, "in game");
   if (inGame && props[inGame]?.type === "checkbox") {
     filters.push({ property: inGame, checkbox: { equals: true } });
   }
-  const definition = propertyName(props, "definition");
+  const definition = propertyName(props, lang === "fr" ? "fr definition" : "definition") ?? propertyName(props, "definition");
   if (definition && props[definition]?.type === "rich_text") {
     filters.push({ property: definition, rich_text: { is_not_empty: true } });
   }
@@ -67,15 +80,16 @@ function partOfSpeech(value: string): Pos {
   return "other";
 }
 
-export function dictionaryEntry(props: Properties, schema: Properties): Entry | undefined {
+export function dictionaryEntry(props: Properties, schema: Properties, lang?: Lang): Entry | undefined {
   const inGame = propertyName(schema, "in game");
   if (inGame && schema[inGame]?.type === "checkbox" && props[inGame]?.checkbox !== true) return;
   const get = (name: string) => propertyText(props[propertyName(props, name) ?? ""]);
   const word = propertyText(Object.values(props).find((prop) => prop.type === "title"));
-  const def = get("definition");
+  const def = propertyText(propertyFor(props, lang === "fr" ? ["fr definition", "definition"] : ["definition"]));
   if (!word || !def) return;
   const level = get("level");
-  return { word, def, hint: get("hint") || def, pos: partOfSpeech(get("part of speech")), ...(level ? { level } : {}) };
+  const hint = propertyText(propertyFor(props, ["hint", "hint (for game)"]));
+  return { word, def, hint: hint || def, pos: partOfSpeech(get("part of speech")), ...(level ? { level } : {}) };
 }
 
 export async function loadNotionDictionary(lang: Lang, post: NotionPost): Promise<{ entries: Entry[]; error?: string }> {
@@ -92,7 +106,7 @@ export async function loadNotionDictionary(lang: Lang, post: NotionPost): Promis
   const source = sources.find((candidate) => matchesNotionLanguage(richText(candidate.title), lang));
   if (!source) return { entries: [], error: "No Notion table found for this language" };
   const schema = source.properties ?? {};
-  const filter = dictionaryFilter(schema);
+  const filter = dictionaryFilter(schema, lang);
   const entries: Entry[] = [];
   cursor = undefined;
   do {
@@ -100,7 +114,7 @@ export async function loadNotionDictionary(lang: Lang, post: NotionPost): Promis
       page_size: 100, ...(filter ? { filter } : {}), ...(cursor ? { start_cursor: cursor } : {}),
     });
     for (const page of response.results) {
-      const entry = dictionaryEntry(page.properties ?? {}, schema);
+      const entry = dictionaryEntry(page.properties ?? {}, schema, lang);
       if (entry) entries.push(entry);
     }
     cursor = response.has_more ? response.next_cursor ?? undefined : undefined;

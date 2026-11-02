@@ -1,5 +1,5 @@
 export type Pos = "noun" | "verb" | "adj" | "other";
-export type Entry = { word: string; def: string; hint: string; pos: Pos; level?: string; trade?: string[]; occasion?: string[] };
+export type Entry = { word: string; def: string; hint: string; pos: Pos; level?: string };
 export type Lang = "en" | "fr" | "de" | "es" | "et";
 
 export const LANGS: { id: Lang; label: string }[] = [
